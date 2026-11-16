@@ -51,7 +51,8 @@ export const PRESETS: Preset[] = [
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 function keyMatches(name: string, key: string): boolean {
-  const n = name.toLowerCase().replace(/[_. ]+/g, "-");
+  // Plugin servers arrive as `plugin:<plugin>:<server>`, so treat `:` as a separator too.
+  const n = name.toLowerCase().replace(/[_.: ]+/g, "-");
   return new RegExp(`(^|-)${escapeRe(key)}(-|$)`).test(n);
 }
 

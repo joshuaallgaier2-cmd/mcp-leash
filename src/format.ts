@@ -94,10 +94,7 @@ export function renderScan(r: ScanResult, rules: RuleSets, offline: boolean): st
   out.push(`${pc.bold("mcp-leash scan")}  ${pc.dim(displayPath(r.project))}`);
   for (const w of r.warnings) out.push(pc.yellow(`⚠ ${w}`));
   if (r.servers.length === 0) {
-    out.push(
-      "",
-      "No MCP servers found (checked ~/.claude.json, local project scope and .mcp.json).",
-    );
+    out.push("", "No MCP servers found (checked ~/.claude.json, .mcp.json and installed plugins).");
     return out.join("\n");
   }
 

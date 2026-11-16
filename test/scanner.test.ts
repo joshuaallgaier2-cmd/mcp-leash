@@ -12,8 +12,9 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { runScan } from "../src/common.js";
+import { discoverServers } from "../src/discovery.js";
 import { makeCtx } from "../src/paths.js";
-import { fetchTools, NOT_STARTED_NOTE, scanServer } from "../src/scanner.js";
+import { fetchTools, NOT_STARTED_NOTE, needsTrust, scanServer } from "../src/scanner.js";
 import type { DiscoveredServer } from "../src/types.js";
 
 const FIX = resolve(dirname(fileURLToPath(import.meta.url)), "fixtures");
@@ -226,20 +227,94 @@ describe("runScan trust handling and plugin warning", () => {
     expect(existsSync(join(root, "m"))).toBe(true);
   });
 
-  it("warns that plugin-provided MCP servers (mcp__plugin_*) are not covered", async () => {
+  it("warns when an enabled plugin has no install record", async () => {
     writeFileSync(
       join(home, ".claude", "settings.json"),
       JSON.stringify({ enabledPlugins: { "foo@market": true, "off@market": false } }),
     );
     const r = await runScan(ctx(), { project: proj, offline: true });
-    const w = r.warnings.find((x) => x.includes("mcp__plugin_"));
-    expect(w).toBeDefined();
-    expect(w).toContain("foo@market");
+    const w = r.warnings.find((x) => x.includes("foo@market"));
+    expect(w).toMatch(/no install record/);
     expect(w).not.toContain("off@market");
   });
 
   it("no plugin warning when no plugins are enabled", async () => {
     const r = await runScan(ctx(), { project: proj, offline: true });
-    expect(r.warnings.some((x) => x.includes("mcp__plugin_"))).toBe(false);
+    expect(r.warnings).toEqual([]);
+  });
+});
+
+describe("plugin-provided servers", () => {
+  const setupPlugin = (scope: "user" | "project") => {
+    const home = join(root, "home");
+    const proj = join(root, "proj");
+    const pluginRoot = join(home, ".claude", "plugins", "cache", "market", "demo", "1.0.0");
+    mkdirSync(join(pluginRoot, ".claude-plugin"), { recursive: true });
+    mkdirSync(proj, { recursive: true });
+    writeFileSync(
+      join(pluginRoot, ".claude-plugin", "plugin.json"),
+      JSON.stringify({ name: "demo" }),
+    );
+    writeFileSync(
+      join(pluginRoot, ".mcp.json"),
+      JSON.stringify({ mcpServers: { fake: { command: "node", args: [FAKE] } } }),
+    );
+    writeFileSync(
+      join(home, ".claude", "plugins", "installed_plugins.json"),
+      JSON.stringify({
+        version: 2,
+        plugins: { "demo@market": [{ scope, installPath: pluginRoot, version: "1.0.0" }] },
+      }),
+    );
+    writeFileSync(
+      join(home, ".claude", "settings.json"),
+      JSON.stringify({ enabledPlugins: { "demo@market": true } }),
+    );
+    return { home, proj };
+  };
+
+  it("lists an enabled plugin server in a scan", async () => {
+    const { home, proj } = setupPlugin("user");
+    const ctx = makeCtx({ HOME: home, MCP_LEASH_HOME: join(root, "leash") });
+    const r = await runScan(ctx, { project: proj, offline: true });
+    const s = r.servers.find((x) => x.name === "plugin:demo:fake");
+    expect(s?.scope).toBe("plugin");
+    expect(s?.target).toContain("fake-server.mjs");
+  });
+
+  it("names plugin tools mcp__plugin_<plugin>_<server>__<tool>", async () => {
+    const { home, proj } = setupPlugin("user");
+    const server = discoverServers({ home, project: proj }).servers.find(
+      (x) => x.name === "plugin:demo:fake",
+    );
+    if (!server) throw new Error("plugin server not discovered");
+    const s = await scanServer(server, { offline: false, cwd: proj, timeoutMs: 30_000 });
+    expect(s.tools.map((t) => t.fullName).sort()).toEqual([
+      "mcp__plugin_demo_fake__delete_thing",
+      "mcp__plugin_demo_fake__read_thing",
+      "mcp__plugin_demo_fake__send_message",
+    ]);
+  });
+
+  it("does not start a project-scope plugin install without --trust-project", async () => {
+    const { home, proj } = setupPlugin("project");
+    const ctx = makeCtx({ HOME: home, MCP_LEASH_HOME: join(root, "leash") });
+    const r = await runScan(ctx, { project: proj, offline: false, interactive: false });
+    const s = r.servers.find((x) => x.name === "plugin:demo:fake");
+    expect(s?.tools).toEqual([]);
+    expect(s?.note).toMatch(/--trust-project/);
+  });
+
+  it("needsTrust covers project-scope plugin installs", () => {
+    expect(
+      needsTrust({
+        name: "plugin:a:b",
+        scope: "plugin",
+        config: {},
+        file: "x",
+        requiresTrust: true,
+      }),
+    ).toBe(true);
+    expect(needsTrust({ name: "plugin:a:b", scope: "plugin", config: {}, file: "x" })).toBe(false);
   });
 });

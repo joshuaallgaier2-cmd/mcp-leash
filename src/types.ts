@@ -1,5 +1,5 @@
 export type Risk = "critical" | "write" | "read" | "unknown";
-export type Scope = "user" | "project" | "local";
+export type Scope = "user" | "project" | "local" | "plugin";
 export type Level = "strict" | "balanced";
 
 export interface Annotations {
@@ -35,6 +35,8 @@ export interface DiscoveredServer {
   scope: Scope;
   config: ServerConfig;
   file: string;
+  /** Plugin installed at project scope: its servers run repo-provided commands, so trust applies. */
+  requiresTrust?: boolean;
 }
 
 export interface ArgRule {

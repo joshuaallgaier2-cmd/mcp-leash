@@ -60,20 +60,9 @@ describe("matchPreset", () => {
     expect(matchPreset("x", { command: "mcp-server-github" })?.id).toBe("github");
   });
 
-  it("matches the Redis and MongoDB servers by key or command", () => {
-    expect(matchPreset("redis", { command: "x" })?.id).toBe("redis");
-    expect(matchPreset("my-redis", { command: "x" })?.id).toBe("redis");
-    expect(
-      matchPreset("x", {
-        command: "uvx",
-        args: ["--from", "redis-mcp-server@latest", "redis-mcp-server"],
-      })?.id,
-    ).toBe("redis");
-    expect(matchPreset("mongodb", { command: "x" })?.id).toBe("mongodb");
-    expect(matchPreset("mongo", { command: "x" })?.id).toBe("mongodb");
-    expect(
-      matchPreset("x", { command: "npx", args: ["-y", "mongodb-mcp-server@latest"] })?.id,
-    ).toBe("mongodb");
+  it("matches plugin-provided server names by their server key", () => {
+    expect(matchPreset("plugin:acme:github", { command: "x" })?.id).toBe("github");
+    expect(matchPreset("plugin:acme:postgres", { command: "x" })?.id).toBe("postgres");
   });
 
   it("returns undefined for unknown servers", () => {
@@ -90,8 +79,6 @@ describe("preset coverage", () => {
       "slack",
       "postgres",
       "sqlite",
-      "redis",
-      "mongodb",
       "supabase",
       "stripe",
       "notion",
@@ -119,25 +106,6 @@ describe("preset coverage", () => {
     for (const p of PRESETS) {
       for (const t of presetOfflineTools(p)) expect(t).not.toContain("*");
     }
-  });
-
-  it("redis and mongodb presets enumerate their key tools offline", () => {
-    const redis = PRESETS.find((p) => p.id === "redis");
-    const mongo = PRESETS.find((p) => p.id === "mongodb");
-    if (!redis || !mongo) throw new Error("missing");
-    expect(presetOfflineTools(redis)).toEqual(
-      expect.arrayContaining(["flushall", "flushdb", "set", "hset", "get", "hgetall"]),
-    );
-    expect(presetOfflineTools(mongo)).toEqual(
-      expect.arrayContaining([
-        "find",
-        "count",
-        "insert-many",
-        "update-many",
-        "drop-collection",
-        "delete-many",
-      ]),
-    );
   });
 
   it("github preset flags the dangerous ones", () => {

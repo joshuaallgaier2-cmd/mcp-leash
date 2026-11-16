@@ -8,6 +8,10 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 - `log --since <duration>`: filter the audit log by a recent interval, for example 1h or 2d.
+- `scan` and `lock` discover MCP servers provided by enabled plugins: installs are read from
+  `~/.claude/plugins/installed_plugins.json`, servers from the plugin's `.mcp.json` and inline
+  `mcpServers`, and they show as `plugin` scope with `mcp__plugin_<plugin>_<server>__<tool>` names.
+  Plugin installs at project scope follow the `--trust-project` rule.
 - Preset for the Git MCP server (`mcp-server-git`, `mcp/git`): `git_reset` is critical;
   `git_commit`, `git_add`, `git_checkout`, `git_create_branch` and `git_merge` are write;
   status, diff, log, show, branch and remote are read.

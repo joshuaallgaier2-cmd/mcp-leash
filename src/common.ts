@@ -31,21 +31,6 @@ export interface ScanOpts {
   confirmFn?: (question: string) => Promise<boolean>;
 }
 
-/** Names of plugins enabled in any settings file that applies to this project. */
-export function enabledPlugins(ctx: Ctx, project: string): string[] {
-  const names = new Set<string>();
-  for (const scope of SCOPES) {
-    try {
-      const v = readSettingsFile(settingsPathFor(scope, ctx.home, project)).enabledPlugins;
-      if (!v || typeof v !== "object" || Array.isArray(v)) continue;
-      for (const [k, on] of Object.entries(v)) if (on === true) names.add(k);
-    } catch {
-      /* unreadable settings are skipped */
-    }
-  }
-  return [...names];
-}
-
 export async function runScan(ctx: Ctx, opts: ScanOpts): Promise<ScanResult> {
   const { servers: discovered, warnings } = discoverServers({
     home: ctx.home,
@@ -71,12 +56,6 @@ export async function runScan(ctx: Ctx, opts: ScanOpts): Promise<ScanResult> {
     trustProject,
   });
 
-  const plugins = enabledPlugins(ctx, opts.project);
-  if (plugins.length > 0) {
-    warnings.push(
-      `${plugins.length} enabled plugin${plugins.length === 1 ? "" : "s"} (${plugins.join(", ")}) may provide MCP servers (mcp__plugin_*) that mcp-leash does not cover yet: their tools are not scanned or locked`,
-    );
-  }
   return { project: opts.project, discovered, servers, warnings };
 }
 

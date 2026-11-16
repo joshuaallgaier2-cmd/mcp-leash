@@ -1,0 +1,6 @@
+{
+  "mcpServers": {
+    "plugin-files": { "command": "node", "args": ["files.mjs"] },
+    "remote": { "type": "http", "url": "https://example.test/mcp" }
+  }
+}
