@@ -6,6 +6,7 @@
 
 ## Verified Claude Code facts (code.claude.com/docs, 2026-11-14, Claude Code 2.1.250)
 - MCP tool names are `mcp__<server>__<tool>`. Characters outside `[A-Za-z0-9_-]` in the server name become `_`. Plugin servers are named `mcp__plugin_<plugin>_<server>__<tool>`.
+- Plugins: `~/.claude/plugins/installed_plugins.json` records each install (`scope`, `installPath`, `version`) under `<plugin>@<marketplace>`; `enabledPlugins` in a settings file decides whether it loads. A plugin's servers come from `.mcp.json` at the plugin root and inline `mcpServers` in `.claude-plugin/plugin.json`, registered as `plugin:<plugin>:<server>`. Precedence: local > project > user > plugin.
 - MCP server configs:
   - `~/.claude.json` → `mcpServers` (user scope)
   - `~/.claude.json` → `projects[<abs path>].mcpServers` (local scope)
@@ -31,12 +32,13 @@
 ## Commands
 
 ### `mcp-leash scan [--project <dir>] [--offline] [--json]`
-1. Discover servers from all three scopes for the current project (default cwd). Show which scope each server comes from.
+1. Discover servers from the three settings scopes and from enabled plugins for the current project (default cwd). Show which scope each server comes from.
 2. For each server, connect with `@modelcontextprotocol/sdk` (stdio spawn, or streamable HTTP with SSE fallback) and call `tools/list`.
    - Timeout is 10s per server.
    - Servers that need auth or fail are shown as `⚠ could not connect (reason)` and do not crash the scan.
    - Kill spawned processes afterwards.
    - `--offline` skips connecting and only uses presets.
+   - Servers from a plugin installed at project scope are treated like project `.mcp.json` servers: they need `--trust-project`.
 3. Classify each tool as one of four risks:
    - **critical**: irreversible or destructive. Examples: delete, remove, drop, destroy, purge, truncate, force-push, merge, or `destructiveHint:true`.
    - **write**: changes state or sends to the outside world. Examples: create, update, write, edit, push, send, post, publish, execute, run, exec, shell, query that mutates, transfer.

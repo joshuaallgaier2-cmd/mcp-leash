@@ -1,8 +1,11 @@
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { discoverServers, normalizeServerName, transportOf } from "../src/discovery.js";
+
+const FIX = resolve(dirname(fileURLToPath(import.meta.url)), "fixtures", "plugin-demo");
 
 let root: string;
 let home: string;
@@ -95,6 +98,79 @@ describe("discoverServers", () => {
   it("never reads outside the supplied home", () => {
     // sanity: an empty temp home yields nothing even if a real ~/.claude.json exists
     expect(discoverServers({ home, project }).servers).toEqual([]);
+  });
+});
+
+describe("discoverServers plugins", () => {
+  const pluginsRoot = () => join(home, ".claude", "plugins");
+
+  /** Install the fixture plugin the way Claude Code would and enable it. */
+  const install = (scope: "user" | "project" | "local" = "user") => {
+    const root = join(pluginsRoot(), "cache", "market", "demo", "1.0.0");
+    mkdirSync(dirname(root), { recursive: true });
+    cpSync(FIX, root, { recursive: true });
+    writeJson(join(pluginsRoot(), "installed_plugins.json"), {
+      version: 2,
+      plugins: { "demo@market": [{ scope, installPath: root, version: "1.0.0" }] },
+    });
+    writeJson(join(home, ".claude", "settings.json"), { enabledPlugins: { "demo@market": true } });
+    return root;
+  };
+
+  it("reads .mcp.json and inline manifest servers as plugin:<plugin>:<server>", () => {
+    const root = install();
+    const { servers, warnings } = discoverServers({ home, project });
+    expect(warnings).toEqual([]);
+    expect(servers.map((s) => s.name).sort()).toEqual([
+      "plugin:demo-plugin:inline-tools",
+      "plugin:demo-plugin:plugin-files",
+      "plugin:demo-plugin:remote",
+    ]);
+    expect(servers.every((s) => s.scope === "plugin")).toBe(true);
+    expect(servers.find((s) => s.name === "plugin:demo-plugin:plugin-files")?.file).toBe(
+      join(root, ".mcp.json"),
+    );
+    expect(servers.find((s) => s.name === "plugin:demo-plugin:inline-tools")?.config).toMatchObject(
+      { command: "node", args: ["inline.mjs"] },
+    );
+    expect(servers.find((s) => s.name === "plugin:demo-plugin:remote")?.config).toMatchObject({
+      type: "http",
+      url: "https://example.test/mcp",
+    });
+  });
+
+  it("ignores plugins that are not enabled", () => {
+    install();
+    writeJson(join(home, ".claude", "settings.json"), {
+      enabledPlugins: { "demo@market": false },
+    });
+    expect(discoverServers({ home, project }).servers).toEqual([]);
+  });
+
+  it("warns about an enabled plugin with no install record", () => {
+    mkdirSync(pluginsRoot(), { recursive: true });
+    writeJson(join(pluginsRoot(), "installed_plugins.json"), { version: 2, plugins: {} });
+    writeJson(join(home, ".claude", "settings.json"), { enabledPlugins: { "ghost@market": true } });
+    const { servers, warnings } = discoverServers({ home, project });
+    expect(servers).toEqual([]);
+    expect(warnings[0]).toMatch(/ghost@market.*no install record/);
+  });
+
+  it("marks a project-scope install as needing trust", () => {
+    install("project");
+    const { servers } = discoverServers({ home, project });
+    expect(servers).toHaveLength(3);
+    expect(servers.every((s) => s.requiresTrust === true)).toBe(true);
+  });
+
+  it("leaves session-only and skills-directory plugins alone", () => {
+    mkdirSync(pluginsRoot(), { recursive: true });
+    writeJson(join(home, ".claude", "settings.json"), {
+      enabledPlugins: { "solo@inline": true, "local@skills-dir": true },
+    });
+    const { servers, warnings } = discoverServers({ home, project });
+    expect(servers).toEqual([]);
+    expect(warnings).toEqual([]);
   });
 });
 

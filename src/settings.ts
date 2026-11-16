@@ -51,7 +51,28 @@ export function settingsPathFor(scope: Scope, home: string, project: string): st
       return join(resolve(project), ".claude", "settings.json");
     case "local":
       return join(resolve(project), ".claude", "settings.local.json");
+    case "plugin":
+      // Plugins are configured by `enabledPlugins`, not by a settings file of their own.
+      throw new Error("plugins do not have a settings file");
   }
+}
+
+/** Settings files that can hold `enabledPlugins`. */
+const SETTINGS_SCOPES: Scope[] = ["user", "project", "local"];
+
+/** Plugin ids (`<name>@<marketplace>`) enabled in any settings file that applies to this project. */
+export function enabledPlugins(home: string, project: string): string[] {
+  const ids = new Set<string>();
+  for (const scope of SETTINGS_SCOPES) {
+    try {
+      const v = readSettingsFile(settingsPathFor(scope, home, project)).enabledPlugins;
+      if (!v || typeof v !== "object" || Array.isArray(v)) continue;
+      for (const [id, on] of Object.entries(v)) if (on === true) ids.add(id);
+    } catch {
+      /* unreadable settings are skipped */
+    }
+  }
+  return [...ids];
 }
 
 export function toolStatus(

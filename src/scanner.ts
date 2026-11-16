@@ -43,9 +43,10 @@ export const NOT_STARTED_NOTE = "(not started: project server — rerun with --t
 /**
  * Project-scope (.mcp.json) servers come from the repo, so they need trust: stdio ones run
  * the repo's commands, and remote ones would receive ${VAR}-expanded secrets in URL/headers.
+ * A plugin installed at project scope is in the same position.
  */
 export function needsTrust(server: DiscoveredServer): boolean {
-  return server.scope === "project";
+  return server.scope === "project" || server.requiresTrust === true;
 }
 
 /** Expand ${VAR} and ${VAR:-default} like Claude Code does in MCP configs. */

@@ -177,10 +177,10 @@ describe("lock output", () => {
     expect(out.join("\n")).toMatch(/mcp__github__merge_pull_request.*overrides your allow/);
   });
 
-  it("warns about enabled plugins whose MCP servers are not covered", async () => {
+  it("warns when an enabled plugin has no install record", async () => {
     seed({ enabledPlugins: { "p@m": true } });
     await lock();
-    expect(err.join("\n")).toMatch(/mcp__plugin_/);
+    expect(err.join("\n")).toMatch(/p@m.*no install record/);
   });
 
   it("warns about nested-quantifier patterns in rules.json (lock and log)", async () => {

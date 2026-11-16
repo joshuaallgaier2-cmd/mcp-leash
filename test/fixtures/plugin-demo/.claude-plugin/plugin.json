@@ -1,0 +1,7 @@
+{
+  "name": "demo-plugin",
+  "description": "Fixture plugin used by test/discovery.test.ts",
+  "mcpServers": {
+    "inline-tools": { "command": "node", "args": ["inline.mjs"] }
+  }
+}

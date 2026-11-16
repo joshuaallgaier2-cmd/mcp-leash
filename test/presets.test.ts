@@ -76,6 +76,11 @@ describe("matchPreset", () => {
     ).toBe("mongodb");
   });
 
+  it("matches plugin-provided server names by their server key", () => {
+    expect(matchPreset("plugin:acme:github", { command: "x" })?.id).toBe("github");
+    expect(matchPreset("plugin:acme:postgres", { command: "x" })?.id).toBe("postgres");
+  });
+
   it("returns undefined for unknown servers", () => {
     expect(matchPreset("weather", { command: "node", args: ["weather.js"] })).toBeUndefined();
   });
